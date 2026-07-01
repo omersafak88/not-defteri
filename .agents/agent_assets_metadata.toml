@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "wO65YO09MpuX3CnFsmdHC"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "y7GcLwdGDXOgSCMu6Bb5_"
+uri = "file://not-defteri.zip"
+type = "unspecified"
+title = "Not Defteri — Kaynak Kod"
