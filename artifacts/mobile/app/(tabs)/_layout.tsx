@@ -13,8 +13,12 @@ function NativeTabLayout() {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "note.text", selected: "note.text" }} />
+        <Icon sf={{ default: "note.text", selected: "note.text.fill" }} />
         <Label>Notlar</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="tags">
+        <Icon sf={{ default: "tag", selected: "tag.fill" }} />
+        <Label>Etiketler</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="timeline">
         <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
@@ -61,7 +65,7 @@ function ClassicTabLayout() {
           ) : null,
         tabBarLabelStyle: {
           fontFamily: "Inter_500Medium",
-          fontSize: 11,
+          fontSize: 10,
         },
       }}
     >
@@ -74,6 +78,18 @@ function ClassicTabLayout() {
               <SymbolView name="note.text" tintColor={color} size={24} />
             ) : (
               <Feather name="book-open" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="tags"
+        options={{
+          title: "Etiketler",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="tag" tintColor={color} size={24} />
+            ) : (
+              <Feather name="tag" size={22} color={color} />
             ),
         }}
       />
