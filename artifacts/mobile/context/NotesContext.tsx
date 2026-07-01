@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
@@ -15,6 +16,11 @@ export interface Entry {
   date: string;
 }
 
+interface ImportResult {
+  imported: number;
+  skipped: number;
+}
+
 interface NotesContextType {
   entries: Entry[];
   isLoading: boolean;
@@ -26,6 +32,7 @@ interface NotesContextType {
   deleteEntry: (id: string) => Promise<void>;
   exportJSON: () => Promise<void>;
   exportHTML: () => Promise<void>;
+  importJSON: (mode: "replace" | "merge") => Promise<ImportResult | null>;
 }
 
 const STORAGE_KEY = "notlar_entries_v1";
@@ -204,9 +211,85 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
     }
   }, [entries]);
 
+  const importJSON = useCallback(
+    async (mode: "replace" | "merge"): Promise<ImportResult | null> => {
+      // Web: use hidden file input
+      if (Platform.OS === "web") {
+        return new Promise((resolve) => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "application/json,.json";
+          input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) { resolve(null); return; }
+            const text = await file.text();
+            try {
+              const parsed = JSON.parse(text);
+              if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
+              const valid: Entry[] = parsed.filter(
+                (e: unknown) =>
+                  e &&
+                  typeof (e as Entry).id === "string" &&
+                  ((e as Entry).type === "note" || (e as Entry).type === "diary") &&
+                  typeof (e as Entry).title === "string"
+              );
+              if (mode === "replace") {
+                await persist(valid);
+                resolve({ imported: valid.length, skipped: parsed.length - valid.length });
+              } else {
+                const existingIds = new Set(entries.map((e) => e.id));
+                const incoming = valid.filter((e) => !existingIds.has(e.id));
+                await persist([...incoming, ...entries]);
+                resolve({ imported: incoming.length, skipped: valid.length - incoming.length });
+              }
+            } catch {
+              Alert.alert("Hata", "Geçersiz JSON dosyası.");
+              resolve(null);
+            }
+          };
+          input.click();
+        });
+      }
+
+      // Native: document picker
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/json", "text/plain"],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return null;
+
+      const uri = result.assets[0].uri;
+      const text = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
+
+      const valid: Entry[] = parsed.filter(
+        (e: unknown) =>
+          e &&
+          typeof (e as Entry).id === "string" &&
+          ((e as Entry).type === "note" || (e as Entry).type === "diary") &&
+          typeof (e as Entry).title === "string"
+      );
+
+      if (mode === "replace") {
+        await persist(valid);
+        return { imported: valid.length, skipped: parsed.length - valid.length };
+      } else {
+        const existingIds = new Set(entries.map((e) => e.id));
+        const incoming = valid.filter((e) => !existingIds.has(e.id));
+        await persist([...incoming, ...entries]);
+        return { imported: incoming.length, skipped: valid.length - incoming.length };
+      }
+    },
+    [entries, persist]
+  );
+
   return (
     <NotesContext.Provider
-      value={{ entries, isLoading, allTags, noteTags, diaryTags, addEntry, updateEntry, deleteEntry, exportJSON, exportHTML }}
+      value={{ entries, isLoading, allTags, noteTags, diaryTags, addEntry, updateEntry, deleteEntry, exportJSON, exportHTML, importJSON }}
     >
       {children}
     </NotesContext.Provider>
