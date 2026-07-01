@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Share } from "react-native";
+import { Alert, Platform } from "react-native";
 
 export interface Entry {
   id: string;
@@ -94,10 +96,35 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
 
   const exportJSON = useCallback(async () => {
     const json = JSON.stringify(entries, null, 2);
-    await Share.share({
-      message: json,
-      title: "Notlar Yedek (JSON)",
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const fileName = `notlar_${timestamp}.json`;
+
+    if (Platform.OS === "web") {
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(filePath, json, {
+      encoding: FileSystem.EncodingType.UTF8,
     });
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(filePath, {
+        mimeType: "application/json",
+        dialogTitle: "JSON dosyasını kaydet",
+        UTI: "public.json",
+      });
+    } else {
+      Alert.alert("Hata", "Bu cihazda dosya paylaşımı desteklenmiyor.");
+    }
   }, [entries]);
 
   const exportHTML = useCallback(async () => {
@@ -146,10 +173,35 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
 </body>
 </html>`;
 
-    await Share.share({
-      message: html,
-      title: "Notlar (HTML)",
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const fileName = `notlar_${timestamp}.html`;
+
+    if (Platform.OS === "web") {
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
+    await FileSystem.writeAsStringAsync(filePath, html, {
+      encoding: FileSystem.EncodingType.UTF8,
     });
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(filePath, {
+        mimeType: "text/html",
+        dialogTitle: "HTML dosyasını kaydet",
+        UTI: "public.html",
+      });
+    } else {
+      Alert.alert("Hata", "Bu cihazda dosya paylaşımı desteklenmiyor.");
+    }
   }, [entries]);
 
   return (
