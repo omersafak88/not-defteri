@@ -109,7 +109,7 @@ export default function TagsScreen() {
             router.push(`/entry/new${selectedScope === "diary" ? "?type=diary" : ""}`);
           }}
         >
-          <Feather name="plus" size={22} color={colors.primaryForeground} />
+          <Text style={[styles.addIcon, { color: colors.primaryForeground }]}>+</Text>
         </Pressable>
       </View>
 
@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
   addButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  addIcon: { fontSize: 26, lineHeight: 30, fontFamily: "Inter_400Regular", includeFontPadding: false },
 
   scopePad: { paddingHorizontal: 16, paddingVertical: 14 },
   scopeToggle: {

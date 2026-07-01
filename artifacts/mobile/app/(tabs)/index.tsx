@@ -7,7 +7,6 @@ import {
   FlatList,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EntryCard } from "@/components/EntryCard";
-import { Entry, useNotes } from "@/context/NotesContext";
+import { useNotes } from "@/context/NotesContext";
 import { useColors } from "@/hooks/useColors";
 
 type FilterType = "all" | "note" | "diary";
@@ -25,17 +24,13 @@ export default function NotesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { entries, isLoading, allTags, noteTags, diaryTags } = useNotes();
+  const { entries, isLoading } = useNotes();
   const [filterType, setFilterType] = useState<FilterType>("all");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-
-  const visibleTags = filterType === "note" ? noteTags : filterType === "diary" ? diaryTags : allTags;
 
   const filtered = useMemo(() => {
     let result = entries;
     if (filterType !== "all") result = result.filter((e) => e.type === filterType);
-    if (selectedTag) result = result.filter((e) => e.tags.includes(selectedTag));
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -46,7 +41,7 @@ export default function NotesScreen() {
       );
     }
     return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [entries, filterType, selectedTag, search]);
+  }, [entries, filterType, search]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -64,7 +59,6 @@ export default function NotesScreen() {
         onPress={() => {
           Haptics.selectionAsync();
           setFilterType(value);
-          setSelectedTag(null);
         }}
       >
         <Text style={[styles.typeChipText, { color: active ? colors.primaryForeground : colors.secondaryForeground }]}>
@@ -85,7 +79,7 @@ export default function NotesScreen() {
             router.push("/entry/new");
           }}
         >
-          <Feather name="plus" size={22} color={colors.primaryForeground} />
+          <Text style={[styles.addIcon, { color: colors.primaryForeground }]}>+</Text>
         </Pressable>
       </View>
 
@@ -101,7 +95,7 @@ export default function NotesScreen() {
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch("")}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
+              <Text style={[styles.clearX, { color: colors.mutedForeground }]}>✕</Text>
             </Pressable>
           )}
         </View>
@@ -112,39 +106,6 @@ export default function NotesScreen() {
         <TypeChip label="Notlar" value="note" />
         <TypeChip label="Günlükler" value="diary" />
       </View>
-
-      {visibleTags.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tagsScroll}
-          style={{ backgroundColor: colors.background }}
-        >
-          {visibleTags.map((tag) => {
-            const active = selectedTag === tag;
-            return (
-              <Pressable
-                key={tag}
-                style={[
-                  styles.tagChip,
-                  {
-                    backgroundColor: active ? colors.accent : colors.secondary,
-                    borderColor: active ? colors.accent : colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setSelectedTag(active ? null : tag);
-                }}
-              >
-                <Text style={[styles.tagChipText, { color: active ? colors.accentForeground : colors.mutedForeground }]}>
-                  #{tag}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
 
       {isLoading ? (
         <View style={styles.center}>
@@ -205,6 +166,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  addIcon: {
+    fontSize: 26,
+    lineHeight: 30,
+    fontFamily: "Inter_400Regular",
+    includeFontPadding: false,
+  },
   searchRow: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -224,11 +191,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     padding: 0,
   },
+  clearX: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
   typeRow: {
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   typeChip: {
     paddingHorizontal: 14,
@@ -239,21 +210,6 @@ const styles = StyleSheet.create({
   typeChipText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
-  },
-  tagsScroll: {
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    gap: 8,
-  },
-  tagChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  tagChipText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
   },
   list: {
     paddingHorizontal: 16,

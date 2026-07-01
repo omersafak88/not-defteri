@@ -128,7 +128,7 @@ export default function TimelineScreen() {
             router.push("/entry/new?type=diary");
           }}
         >
-          <Feather name="plus" size={22} color={colors.primaryForeground} />
+          <Text style={[styles.addIcon, { color: colors.primaryForeground }]}>+</Text>
         </Pressable>
       </View>
 
@@ -195,6 +195,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
+  },
+  addIcon: {
+    fontSize: 26,
+    lineHeight: 30,
+    fontFamily: "Inter_400Regular",
+    includeFontPadding: false,
   },
   sectionHeader: {
     paddingHorizontal: 20,
