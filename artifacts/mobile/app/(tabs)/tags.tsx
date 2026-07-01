@@ -3,10 +3,10 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
-  FlatList,
   Platform,
   Pressable,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -14,61 +14,87 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EntryCard } from "@/components/EntryCard";
-import { useNotes } from "@/context/NotesContext";
+import { Entry, useNotes } from "@/context/NotesContext";
 import { useColors } from "@/hooks/useColors";
+
+type TagScope = "note" | "diary";
 
 interface TagStat {
   tag: string;
   count: number;
 }
 
+const BADGE_PALETTE = [
+  { bg: "#FEF3E2", text: "#B5853A" },
+  { bg: "#EAF4FB", text: "#2C7CB4" },
+  { bg: "#F0EBF8", text: "#7C4DB5" },
+  { bg: "#E8F7ED", text: "#2D8A4E" },
+  { bg: "#FDEAEA", text: "#B53A3A" },
+  { bg: "#FFF4E0", text: "#C4793A" },
+  { bg: "#E6F4F1", text: "#2A8A72" },
+];
+
+function badgeColor(index: number) {
+  return BADGE_PALETTE[index % BADGE_PALETTE.length];
+}
+
 export default function TagsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { entries, isLoading } = useNotes();
+  const { entries } = useNotes();
+
+  const [selectedScope, setSelectedScope] = useState<TagScope>("note");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const bottomPad = insets.bottom + (Platform.OS === "web" ? 34 : 0) + 90;
 
-  const tagStats: TagStat[] = useMemo(() => {
+  const noteTagStats = useMemo((): TagStat[] => {
     const counts: Record<string, number> = {};
-    for (const entry of entries) {
-      for (const tag of entry.tags) {
-        counts[tag] = (counts[tag] ?? 0) + 1;
-      }
+    for (const e of entries) {
+      if (e.type !== "note") continue;
+      for (const t of e.tags) counts[t] = (counts[t] ?? 0) + 1;
     }
     return Object.entries(counts)
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   }, [entries]);
 
-  const filteredEntries = useMemo(() => {
+  const diaryTagStats = useMemo((): TagStat[] => {
+    const counts: Record<string, number> = {};
+    for (const e of entries) {
+      if (e.type !== "diary") continue;
+      for (const t of e.tags) counts[t] = (counts[t] ?? 0) + 1;
+    }
+    return Object.entries(counts)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  }, [entries]);
+
+  const activeStats = selectedScope === "note" ? noteTagStats : diaryTagStats;
+
+  const filteredEntries = useMemo((): Entry[] => {
     if (!selectedTag) return [];
     return entries
-      .filter((e) => e.tags.includes(selectedTag))
+      .filter((e) => e.type === selectedScope && e.tags.includes(selectedTag))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [entries, selectedTag]);
+  }, [entries, selectedTag, selectedScope]);
 
-  const totalTagged = useMemo(
-    () => entries.filter((e) => e.tags.length > 0).length,
-    [entries]
-  );
+  const switchScope = (scope: TagScope) => {
+    setSelectedScope(scope);
+    setSelectedTag(null);
+    Haptics.selectionAsync();
+  };
 
-  const BADGE_COLORS = [
-    { bg: "#FEF3E2", text: "#B5853A" },
-    { bg: "#EAF4FB", text: "#2C7CB4" },
-    { bg: "#F0EBF8", text: "#7C4DB5" },
-    { bg: "#E8F7ED", text: "#2D8A4E" },
-    { bg: "#FDEAEA", text: "#B53A3A" },
-  ];
-
-  function getBadgeColor(index: number) {
-    return BADGE_COLORS[index % BADGE_COLORS.length];
-  }
+  const selectTag = (tag: string) => {
+    setSelectedTag((prev) => (prev === tag ? null : tag));
+    Haptics.selectionAsync();
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -80,55 +106,69 @@ export default function TagsScreen() {
           style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push("/entry/new");
+            router.push(`/entry/new${selectedScope === "diary" ? "?type=diary" : ""}`);
           }}
         >
           <Feather name="plus" size={22} color={colors.primaryForeground} />
         </Pressable>
       </View>
 
-      {tagStats.length === 0 ? (
-        <View style={styles.center}>
-          <Feather name="tag" size={48} color={colors.border} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Henüz etiket yok</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-            Girişlerinize etiket ekleyerek burada görüntüleyin
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={selectedTag ? filteredEntries : []}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <EntryCard entry={item} />}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 0) + 90 },
-          ]}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            <View>
-              {/* Summary row */}
-              <View style={[styles.summaryRow, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
-                <View style={styles.summaryItem}>
-                  <Text style={[styles.summaryNumber, { color: colors.foreground }]}>{tagStats.length}</Text>
-                  <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Etiket</Text>
-                </View>
-                <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.summaryItem}>
-                  <Text style={[styles.summaryNumber, { color: colors.foreground }]}>{totalTagged}</Text>
-                  <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Etiketli Giriş</Text>
-                </View>
-                <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-                <View style={styles.summaryItem}>
-                  <Text style={[styles.summaryNumber, { color: colors.foreground }]}>{entries.length}</Text>
-                  <Text style={[styles.summaryLabel, { color: colors.mutedForeground }]}>Toplam</Text>
-                </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: bottomPad }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Scope toggle */}
+        <View style={styles.scopePad}>
+          <View style={[styles.scopeToggle, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
+            <Pressable
+              style={[styles.scopeOption, selectedScope === "note" && { backgroundColor: colors.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 }]}
+              onPress={() => switchScope("note")}
+            >
+              <Feather name="file-text" size={15} color={selectedScope === "note" ? colors.noteTagText : colors.mutedForeground} />
+              <Text style={[styles.scopeText, { color: selectedScope === "note" ? colors.noteTagText : colors.mutedForeground }]}>
+                Notlar
+              </Text>
+              <View style={[styles.scopeCount, { backgroundColor: selectedScope === "note" ? colors.noteTag : "transparent" }]}>
+                <Text style={[styles.scopeCountText, { color: selectedScope === "note" ? colors.noteTagText : colors.mutedForeground }]}>
+                  {noteTagStats.length}
+                </Text>
               </View>
+            </Pressable>
+            <Pressable
+              style={[styles.scopeOption, selectedScope === "diary" && { backgroundColor: colors.card, shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2 }]}
+              onPress={() => switchScope("diary")}
+            >
+              <Feather name="book" size={15} color={selectedScope === "diary" ? colors.diaryTagText : colors.mutedForeground} />
+              <Text style={[styles.scopeText, { color: selectedScope === "diary" ? colors.diaryTagText : colors.mutedForeground }]}>
+                Günlükler
+              </Text>
+              <View style={[styles.scopeCount, { backgroundColor: selectedScope === "diary" ? colors.diaryTag : "transparent" }]}>
+                <Text style={[styles.scopeCountText, { color: selectedScope === "diary" ? colors.diaryTagText : colors.mutedForeground }]}>
+                  {diaryTagStats.length}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        </View>
 
-              {/* Tag grid */}
+        {activeStats.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Feather name="tag" size={40} color={colors.border} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              {selectedScope === "note" ? "Notlarda etiket yok" : "Günlüklerde etiket yok"}
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+              Giriş oluştururken etiket ekleyin
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Tag cloud */}
+            <View style={styles.tagGridPad}>
               <View style={styles.tagGrid}>
-                {tagStats.map((stat, index) => {
-                  const { bg, text } = getBadgeColor(index);
+                {activeStats.map((stat, index) => {
+                  const { bg, text } = badgeColor(index);
                   const active = selectedTag === stat.tag;
                   return (
                     <Pressable
@@ -138,21 +178,18 @@ export default function TagsScreen() {
                         {
                           backgroundColor: active ? colors.primary : colors.card,
                           borderColor: active ? colors.primary : colors.border,
-                          opacity: pressed ? 0.85 : 1,
+                          opacity: pressed ? 0.82 : 1,
                         },
                       ]}
-                      onPress={() => {
-                        Haptics.selectionAsync();
-                        setSelectedTag(active ? null : stat.tag);
-                      }}
+                      onPress={() => selectTag(stat.tag)}
                     >
-                      <View style={[styles.tagBadge, { backgroundColor: active ? "rgba(255,255,255,0.2)" : bg }]}>
-                        <Text style={[styles.tagBadgeText, { color: active ? "#fff" : text }]}>
+                      <View style={[styles.countBubble, { backgroundColor: active ? "rgba(255,255,255,0.22)" : bg }]}>
+                        <Text style={[styles.countText, { color: active ? "#fff" : text }]}>
                           {stat.count}
                         </Text>
                       </View>
                       <Text
-                        style={[styles.tagName, { color: active ? colors.primaryForeground : colors.foreground }]}
+                        style={[styles.tagLabel, { color: active ? colors.primaryForeground : colors.foreground }]}
                         numberOfLines={1}
                       >
                         #{stat.tag}
@@ -161,41 +198,45 @@ export default function TagsScreen() {
                   );
                 })}
               </View>
+            </View>
 
-              {/* Selected tag header */}
-              {selectedTag && (
-                <View style={styles.filteredHeader}>
-                  <View style={styles.filteredTitleRow}>
-                    <Text style={[styles.filteredTitle, { color: colors.foreground }]}>
-                      #{selectedTag}
-                    </Text>
+            {/* Filtered list */}
+            {selectedTag && (
+              <View style={styles.filteredSection}>
+                <View style={styles.filteredBar}>
+                  <View style={styles.filteredMeta}>
+                    <Text style={[styles.filteredTag, { color: colors.foreground }]}>#{selectedTag}</Text>
                     <Text style={[styles.filteredCount, { color: colors.mutedForeground }]}>
-                      {filteredEntries.length} giriş
+                      — {filteredEntries.length} giriş
                     </Text>
                   </View>
                   <Pressable
-                    style={[styles.clearButton, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                    onPress={() => {
-                      setSelectedTag(null);
-                      Haptics.selectionAsync();
-                    }}
+                    style={[styles.clearBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                    onPress={() => { setSelectedTag(null); Haptics.selectionAsync(); }}
                   >
-                    <Feather name="x" size={14} color={colors.mutedForeground} />
-                    <Text style={[styles.clearButtonText, { color: colors.mutedForeground }]}>Temizle</Text>
+                    <Feather name="x" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.clearBtnText, { color: colors.mutedForeground }]}>Kapat</Text>
                   </Pressable>
                 </View>
-              )}
-            </View>
-          }
-          ListEmptyComponent={
-            selectedTag ? (
-              <View style={styles.innerEmpty}>
-                <Text style={[styles.innerEmptyText, { color: colors.mutedForeground }]}>Bu etikete ait giriş yok</Text>
+
+                {filteredEntries.length === 0 ? (
+                  <View style={styles.innerEmpty}>
+                    <Text style={[styles.innerEmptyText, { color: colors.mutedForeground }]}>
+                      Bu etikete ait giriş bulunamadı
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.entryList}>
+                    {filteredEntries.map((entry) => (
+                      <EntryCard key={entry.id} entry={entry} />
+                    ))}
+                  </View>
+                )}
               </View>
-            ) : null
-          }
-        />
-      )}
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -210,69 +251,35 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-  },
-  addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_600SemiBold",
-    marginTop: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
-  listContent: {
-    paddingTop: 0,
-    paddingHorizontal: 16,
-  },
-  summaryRow: {
+  headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold" },
+  addButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+
+  scopePad: { paddingHorizontal: 16, paddingVertical: 14 },
+  scopeToggle: {
     flexDirection: "row",
-    borderRadius: 14,
+    borderRadius: 13,
     borderWidth: 1,
-    marginVertical: 16,
-    overflow: "hidden",
+    padding: 4,
   },
-  summaryItem: {
+  scopeOption: {
     flex: 1,
-    alignItems: "center",
-    paddingVertical: 14,
-  },
-  summaryNumber: {
-    fontSize: 24,
-    fontFamily: "Inter_700Bold",
-  },
-  summaryLabel: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    marginTop: 2,
-  },
-  summaryDivider: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: "stretch",
-  },
-  tagGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 10,
   },
+  scopeText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  scopeCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+  scopeCountText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+
+  emptyBox: { alignItems: "center", gap: 8, paddingVertical: 48, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 4 },
+  emptySubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+
+  tagGridPad: { paddingHorizontal: 16 },
+  tagGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
   tagCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -283,11 +290,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
   },
-  tagBadge: {
+  countBubble: {
     minWidth: 24,
     height: 24,
     borderRadius: 12,
@@ -295,37 +302,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
   },
-  tagBadgeText: {
-    fontSize: 12,
-    fontFamily: "Inter_700Bold",
-  },
-  tagName: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    maxWidth: 120,
-  },
-  filteredHeader: {
+  countText: { fontSize: 12, fontFamily: "Inter_700Bold" },
+  tagLabel: { fontSize: 14, fontFamily: "Inter_500Medium", maxWidth: 130 },
+
+  filteredSection: { marginTop: 20, paddingHorizontal: 16 },
+  filteredBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
-    marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 12,
   },
-  filteredTitleRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-  },
-  filteredTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  filteredCount: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
-  clearButton: {
+  filteredMeta: { flexDirection: "row", alignItems: "baseline", gap: 6 },
+  filteredTag: { fontSize: 18, fontFamily: "Inter_700Bold" },
+  filteredCount: { fontSize: 13, fontFamily: "Inter_400Regular" },
+  clearBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
@@ -334,16 +324,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  clearButtonText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  innerEmpty: {
-    paddingVertical: 24,
-    alignItems: "center",
-  },
-  innerEmptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
+  clearBtnText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+
+  entryList: { gap: 0 },
+  innerEmpty: { paddingVertical: 20, alignItems: "center" },
+  innerEmptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 });

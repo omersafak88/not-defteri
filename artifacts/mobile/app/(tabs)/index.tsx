@@ -25,10 +25,12 @@ export default function NotesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { entries, isLoading, allTags } = useNotes();
+  const { entries, isLoading, allTags, noteTags, diaryTags } = useNotes();
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  const visibleTags = filterType === "note" ? noteTags : filterType === "diary" ? diaryTags : allTags;
 
   const filtered = useMemo(() => {
     let result = entries;
@@ -62,6 +64,7 @@ export default function NotesScreen() {
         onPress={() => {
           Haptics.selectionAsync();
           setFilterType(value);
+          setSelectedTag(null);
         }}
       >
         <Text style={[styles.typeChipText, { color: active ? colors.primaryForeground : colors.secondaryForeground }]}>
@@ -110,14 +113,14 @@ export default function NotesScreen() {
         <TypeChip label="Günlükler" value="diary" />
       </View>
 
-      {allTags.length > 0 && (
+      {visibleTags.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tagsScroll}
           style={{ backgroundColor: colors.background }}
         >
-          {allTags.map((tag) => {
+          {visibleTags.map((tag) => {
             const active = selectedTag === tag;
             return (
               <Pressable

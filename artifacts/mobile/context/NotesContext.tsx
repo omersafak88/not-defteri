@@ -17,6 +17,8 @@ interface NotesContextType {
   entries: Entry[];
   isLoading: boolean;
   allTags: string[];
+  noteTags: string[];
+  diaryTags: string[];
   addEntry: (entry: Omit<Entry, "id" | "createdAt">) => Promise<void>;
   updateEntry: (id: string, updates: Partial<Omit<Entry, "id" | "createdAt">>) => Promise<void>;
   deleteEntry: (id: string) => Promise<void>;
@@ -87,6 +89,8 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   );
 
   const allTags = Array.from(new Set(entries.flatMap((e) => e.tags))).sort();
+  const noteTags = Array.from(new Set(entries.filter((e) => e.type === "note").flatMap((e) => e.tags))).sort();
+  const diaryTags = Array.from(new Set(entries.filter((e) => e.type === "diary").flatMap((e) => e.tags))).sort();
 
   const exportJSON = useCallback(async () => {
     const json = JSON.stringify(entries, null, 2);
@@ -150,7 +154,7 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
 
   return (
     <NotesContext.Provider
-      value={{ entries, isLoading, allTags, addEntry, updateEntry, deleteEntry, exportJSON, exportHTML }}
+      value={{ entries, isLoading, allTags, noteTags, diaryTags, addEntry, updateEntry, deleteEntry, exportJSON, exportHTML }}
     >
       {children}
     </NotesContext.Provider>
