@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
+import { readAsStringAsync } from "expo-file-system/legacy";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Alert, Platform, Share } from "react-native";
 
@@ -223,19 +224,7 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
       if (result.canceled) return null;
 
       const uri = result.assets[0].uri;
-      const text = await new Promise<string>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.onload = () => {
-          if (xhr.status === 0 || xhr.status === 200) {
-            resolve(xhr.responseText);
-          } else {
-            reject(new Error(`Dosya okunamadı (HTTP ${xhr.status})`));
-          }
-        };
-        xhr.onerror = () => reject(new Error("Dosya erişim hatası"));
-        xhr.open("GET", uri);
-        xhr.send();
-      });
+      const text = await readAsStringAsync(uri, { encoding: "utf8" });
 
       let parsed: unknown;
       try {
