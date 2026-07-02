@@ -75,10 +75,6 @@ export default function NewEntryScreen() {
   };
 
   const handleSave = async () => {
-    if (!title.trim()) {
-      Alert.alert("Başlık gerekli", "Lütfen bir başlık girin.");
-      return;
-    }
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await addEntry({ type, title: title.trim(), content, tags, photos, date });
