@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
-import { readAsStringAsync } from "expo-file-system/legacy";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Alert, Platform, Share } from "react-native";
 
@@ -35,11 +34,20 @@ interface NotesContextType {
 }
 
 const STORAGE_KEY = "notlar_entries_v1";
-
 const NotesContext = createContext<NotesContextType | undefined>(undefined);
 
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+/** Decode a base64 string to a UTF-8 string (handles Turkish & other multi-byte chars). */
+function base64ToUtf8(b64: string): string {
+  const binaryStr = atob(b64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) {
+    bytes[i] = binaryStr.charCodeAt(i);
+  }
+  return new TextDecoder("utf-8").decode(bytes);
 }
 
 export function NotesProvider({ children }: { children: React.ReactNode }) {
@@ -48,9 +56,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (raw) setEntries(JSON.parse(raw) as Entry[]);
-      })
+      .then((raw) => { if (raw) setEntries(JSON.parse(raw) as Entry[]); })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -61,8 +67,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
 
   const addEntry = useCallback(
     async (entry: Omit<Entry, "id" | "createdAt">) => {
-      const newEntry: Entry = { ...entry, id: generateId(), createdAt: new Date().toISOString() };
-      await persist([newEntry, ...entries]);
+      await persist([{ ...entry, id: generateId(), createdAt: new Date().toISOString() }, ...entries]);
     },
     [entries, persist]
   );
@@ -75,9 +80,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   );
 
   const deleteEntry = useCallback(
-    async (id: string) => {
-      await persist(entries.filter((e) => e.id !== id));
-    },
+    async (id: string) => { await persist(entries.filter((e) => e.id !== id)); },
     [entries, persist]
   );
 
@@ -95,10 +98,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     a.style.display = "none";
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 150);
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 150);
   }
 
   // ── JSON export ──────────────────────────────────────────────────────────
@@ -106,13 +106,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     const json = JSON.stringify(entries, null, 2);
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `notlar_${ts}.json`;
-
-    if (Platform.OS === "web") {
-      webDownload(json, fileName, "application/json");
-      return;
-    }
-
-    // Native: share as text — works in Expo Go without file-system write
+    if (Platform.OS === "web") { webDownload(json, fileName, "application/json"); return; }
     await Share.share({ message: json, title: fileName });
   }, [entries]);
 
@@ -139,34 +133,18 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       </div>`;
 
     const html = `<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Notlarım</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#FAF9F7; color:#1C1C1E; max-width:700px; margin:0 auto; padding:24px; }
-  h1 { font-size:28px; margin-bottom:4px; }
-  h2 { font-size:20px; margin:32px 0 16px; color:#B5853A; border-bottom:2px solid #E8E2D9; padding-bottom:8px; }
-  .meta { font-size:13px; color:#8C8C8E; margin-bottom:32px; }
-</style>
-</head>
-<body>
+<html lang="tr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Notlarım</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#FAF9F7;color:#1C1C1E;max-width:700px;margin:0 auto;padding:24px}h1{font-size:28px;margin-bottom:4px}h2{font-size:20px;margin:32px 0 16px;color:#B5853A;border-bottom:2px solid #E8E2D9;padding-bottom:8px}.meta{font-size:13px;color:#8C8C8E;margin-bottom:32px}</style>
+</head><body>
 <h1>Notlarım</h1>
 <p class="meta">Dışa aktarıldı: ${new Date().toLocaleString("tr-TR")} — Toplam ${entries.length} giriş</p>
 ${diaryEntries.length > 0 ? `<h2>Günlükler (${diaryEntries.length})</h2>${diaryEntries.map(renderEntry).join("")}` : ""}
 ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries.map(renderEntry).join("")}` : ""}
-</body>
-</html>`;
+</body></html>`;
 
     const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `notlar_${ts}.html`;
-
-    if (Platform.OS === "web") {
-      webDownload(html, fileName, "text/html");
-      return;
-    }
-
+    if (Platform.OS === "web") { webDownload(html, fileName, "text/html"); return; }
     await Share.share({ message: html, title: fileName });
   }, [entries]);
 
@@ -193,7 +171,15 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
         return { imported: incoming.length, skipped: valid.length - incoming.length };
       };
 
-      // Web: hidden file input
+      const parseAndImport = async (text: string): Promise<ImportResult> => {
+        let parsed: unknown;
+        try { parsed = JSON.parse(text); }
+        catch { throw new Error("JSON formatı geçersiz. Lütfen uygulamadan dışa aktarılan bir dosya seçin."); }
+        if (!Array.isArray(parsed)) throw new Error("Beklenen format: JSON dizisi");
+        return applyImport(validateEntries(parsed as unknown[]), (parsed as unknown[]).length);
+      };
+
+      // ── Web ──
       if (Platform.OS === "web") {
         return new Promise((resolve) => {
           const input = document.createElement("input");
@@ -202,39 +188,38 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
           input.onchange = async () => {
             const webFile = input.files?.[0];
             if (!webFile) { resolve(null); return; }
-            try {
-              const text = await webFile.text();
-              const parsed = JSON.parse(text);
-              if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
-              resolve(await applyImport(validateEntries(parsed), parsed.length));
-            } catch {
-              Alert.alert("Hata", "Geçersiz JSON dosyası.");
-              resolve(null);
-            }
+            try { resolve(await parseAndImport(await webFile.text())); }
+            catch (err) { Alert.alert("Hata", err instanceof Error ? err.message : "Geçersiz dosya."); resolve(null); }
           };
           input.click();
         });
       }
 
-      // Native: document picker → XHR to read content (reliable with file:// & content:// URIs)
+      // ── Native: pick with base64=true so no file-system read is needed ──
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/json", "text/plain"],
-        copyToCacheDirectory: true,
-      });
+        copyToCacheDirectory: false,
+        base64: true,
+      } as DocumentPicker.DocumentPickerOptions);
+
       if (result.canceled) return null;
 
-      const uri = result.assets[0].uri;
-      const text = await readAsStringAsync(uri, { encoding: "utf8" });
+      const asset = result.assets[0];
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        throw new Error("JSON formatı geçersiz. Lütfen uygulamadan dışa aktarılan bir dosya seçin.");
+      // Prefer base64 content (no file system needed)
+      if (asset.base64) {
+        const text = base64ToUtf8(asset.base64);
+        return parseAndImport(text);
       }
-      if (!Array.isArray(parsed)) throw new Error("Beklenen format: JSON dizisi");
 
-      return applyImport(validateEntries(parsed as unknown[]), (parsed as unknown[]).length);
+      // Fallback: fetch (works on most devices when copyToCacheDirectory is set)
+      const response = await fetch(asset.uri);
+      if (!response.ok && response.status !== 0) {
+        throw new Error(`Dosya okunamadı (${response.status})`);
+      }
+      const text = await response.text();
+      if (!text.trim()) throw new Error("Dosya boş veya okunamadı.");
+      return parseAndImport(text);
     },
     [entries, persist]
   );
