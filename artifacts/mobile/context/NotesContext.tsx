@@ -1,9 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Alert, Platform } from "react-native";
+import { Alert, Platform, Share } from "react-native";
 
 export interface Entry {
   id: string;
@@ -50,10 +48,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        if (raw) {
-          const parsed = JSON.parse(raw) as Entry[];
-          setEntries(parsed);
-        }
+        if (raw) setEntries(JSON.parse(raw) as Entry[]);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -65,11 +60,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
 
   const addEntry = useCallback(
     async (entry: Omit<Entry, "id" | "createdAt">) => {
-      const newEntry: Entry = {
-        ...entry,
-        id: generateId(),
-        createdAt: new Date().toISOString(),
-      };
+      const newEntry: Entry = { ...entry, id: generateId(), createdAt: new Date().toISOString() };
       await persist([newEntry, ...entries]);
     },
     [entries, persist]
@@ -93,7 +84,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   const noteTags = Array.from(new Set(entries.filter((e) => e.type === "note").flatMap((e) => e.tags))).sort();
   const diaryTags = Array.from(new Set(entries.filter((e) => e.type === "diary").flatMap((e) => e.tags))).sort();
 
-  // ── web helper: trigger a browser download ──────────────────────────────
+  // ── web: trigger browser download ────────────────────────────────────────
   function webDownload(content: string, fileName: string, mimeType: string) {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -109,18 +100,6 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
     }, 150);
   }
 
-  // ── native helper: write to cache and share ──────────────────────────────
-  async function nativeShare(content: string, fileName: string, mimeType: string, UTI: string) {
-    const file = new File(Paths.cache, fileName);
-    file.write(content);
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (isAvailable) {
-      await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: fileName, UTI });
-    } else {
-      Alert.alert("Paylaşım Desteklenmiyor", "Bu cihazda paylaşım kullanılamıyor.");
-    }
-  }
-
   // ── JSON export ──────────────────────────────────────────────────────────
   const exportJSON = useCallback(async () => {
     const json = JSON.stringify(entries, null, 2);
@@ -131,7 +110,9 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
       webDownload(json, fileName, "application/json");
       return;
     }
-    await nativeShare(json, fileName, "application/json", "public.json");
+
+    // Native: share as text — works in Expo Go without file-system write
+    await Share.share({ message: json, title: fileName });
   }, [entries]);
 
   // ── HTML export ──────────────────────────────────────────────────────────
@@ -184,7 +165,8 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
       webDownload(html, fileName, "text/html");
       return;
     }
-    await nativeShare(html, fileName, "text/html", "public.html");
+
+    await Share.share({ message: html, title: fileName });
   }, [entries]);
 
   // ── JSON import ──────────────────────────────────────────────────────────
@@ -233,15 +215,15 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
         });
       }
 
-      // Native: document picker → File.text()
+      // Native: document picker → fetch to read content (works in Expo Go)
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/json", "text/plain"],
         copyToCacheDirectory: true,
       });
       if (result.canceled) return null;
 
-      const pickedFile = new File(result.assets[0].uri);
-      const text = await pickedFile.text();
+      const response = await fetch(result.assets[0].uri);
+      const text = await response.text();
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
 
