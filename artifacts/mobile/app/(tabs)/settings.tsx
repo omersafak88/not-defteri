@@ -93,8 +93,8 @@ export default function SettingsScreen() {
           `${result.imported} giriş eklendi${result.skipped > 0 ? `, ${result.skipped} zaten mevcut` : ""}.`
         );
       }
-    } catch {
-      Alert.alert("Hata", "Dosya okunamadı veya geçersiz format.");
+    } catch (e) {
+      Alert.alert("Hata", e instanceof Error ? e.message : "Dosya okunamadı veya geçersiz format.");
     } finally {
       setLoadingImport(false);
     }

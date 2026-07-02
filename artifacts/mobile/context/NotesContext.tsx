@@ -215,19 +215,37 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
         });
       }
 
-      // Native: document picker → fetch to read content (works in Expo Go)
+      // Native: document picker → XHR to read content (reliable with file:// & content:// URIs)
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/json", "text/plain"],
         copyToCacheDirectory: true,
       });
       if (result.canceled) return null;
 
-      const response = await fetch(result.assets[0].uri);
-      const text = await response.text();
-      const parsed = JSON.parse(text);
-      if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
+      const uri = result.assets[0].uri;
+      const text = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => {
+          if (xhr.status === 0 || xhr.status === 200) {
+            resolve(xhr.responseText);
+          } else {
+            reject(new Error(`Dosya okunamadı (HTTP ${xhr.status})`));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Dosya erişim hatası"));
+        xhr.open("GET", uri);
+        xhr.send();
+      });
 
-      return applyImport(validateEntries(parsed), parsed.length);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error("JSON formatı geçersiz. Lütfen uygulamadan dışa aktarılan bir dosya seçin.");
+      }
+      if (!Array.isArray(parsed)) throw new Error("Beklenen format: JSON dizisi");
+
+      return applyImport(validateEntries(parsed as unknown[]), (parsed as unknown[]).length);
     },
     [entries, persist]
   );
