@@ -32,8 +32,9 @@ export default function SettingsScreen() {
     setLoadingJSON(true);
     try {
       await exportJSON();
-    } catch {
-      Alert.alert("Hata", "Dışa aktarma başarısız oldu.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Hata", `Dışa aktarma başarısız:\n${msg}`);
     } finally {
       setLoadingJSON(false);
     }
@@ -44,8 +45,9 @@ export default function SettingsScreen() {
     setLoadingHTML(true);
     try {
       await exportHTML();
-    } catch {
-      Alert.alert("Hata", "Dışa aktarma başarısız oldu.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert("Hata", `Dışa aktarma başarısız:\n${msg}`);
     } finally {
       setLoadingHTML(false);
     }

@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { Alert, Platform } from "react-native";
@@ -43,11 +43,6 @@ function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 }
 
-function todayString(): string {
-  const d = new Date();
-  return d.toISOString().split("T")[0];
-}
-
 export function NotesProvider({ children }: { children: React.ReactNode }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,24 +70,21 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
         id: generateId(),
         createdAt: new Date().toISOString(),
       };
-      const updated = [newEntry, ...entries];
-      await persist(updated);
+      await persist([newEntry, ...entries]);
     },
     [entries, persist]
   );
 
   const updateEntry = useCallback(
     async (id: string, updates: Partial<Omit<Entry, "id" | "createdAt">>) => {
-      const updated = entries.map((e) => (e.id === id ? { ...e, ...updates } : e));
-      await persist(updated);
+      await persist(entries.map((e) => (e.id === id ? { ...e, ...updates } : e)));
     },
     [entries, persist]
   );
 
   const deleteEntry = useCallback(
     async (id: string) => {
-      const updated = entries.filter((e) => e.id !== id);
-      await persist(updated);
+      await persist(entries.filter((e) => e.id !== id));
     },
     [entries, persist]
   );
@@ -101,49 +93,54 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
   const noteTags = Array.from(new Set(entries.filter((e) => e.type === "note").flatMap((e) => e.tags))).sort();
   const diaryTags = Array.from(new Set(entries.filter((e) => e.type === "diary").flatMap((e) => e.tags))).sort();
 
-  const exportJSON = useCallback(async () => {
-    const json = JSON.stringify(entries, null, 2);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `notlar_${timestamp}.json`;
-
-    if (Platform.OS === "web") {
-      const blob = new Blob([json], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
+  // ── web helper: trigger a browser download ──────────────────────────────
+  function webDownload(content: string, fileName: string, mimeType: string) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      return;
-    }
+    }, 150);
+  }
 
-    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(filePath, json, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
-
+  // ── native helper: write to cache and share ──────────────────────────────
+  async function nativeShare(content: string, fileName: string, mimeType: string, UTI: string) {
+    const file = new File(Paths.cache, fileName);
+    file.write(content);
     const isAvailable = await Sharing.isAvailableAsync();
     if (isAvailable) {
-      await Sharing.shareAsync(filePath, {
-        mimeType: "application/json",
-        dialogTitle: "JSON dosyasını kaydet",
-        UTI: "public.json",
-      });
+      await Sharing.shareAsync(file.uri, { mimeType, dialogTitle: fileName, UTI });
     } else {
-      Alert.alert("Hata", "Bu cihazda dosya paylaşımı desteklenmiyor.");
+      Alert.alert("Paylaşım Desteklenmiyor", "Bu cihazda paylaşım kullanılamıyor.");
     }
+  }
+
+  // ── JSON export ──────────────────────────────────────────────────────────
+  const exportJSON = useCallback(async () => {
+    const json = JSON.stringify(entries, null, 2);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const fileName = `notlar_${ts}.json`;
+
+    if (Platform.OS === "web") {
+      webDownload(json, fileName, "application/json");
+      return;
+    }
+    await nativeShare(json, fileName, "application/json", "public.json");
   }, [entries]);
 
+  // ── HTML export ──────────────────────────────────────────────────────────
   const exportHTML = useCallback(async () => {
     const escape = (s: string) =>
       s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
 
-    const diaryEntries = entries
-      .filter((e) => e.type === "diary")
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const noteEntries = entries
-      .filter((e) => e.type === "note")
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const diaryEntries = entries.filter((e) => e.type === "diary").sort((a, b) => b.date.localeCompare(a.date));
+    const noteEntries = entries.filter((e) => e.type === "note").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
     const renderEntry = (e: Entry) => `
       <div style="margin-bottom:28px;padding:20px;border:1px solid #E8E2D9;border-radius:12px;background:#fff;">
@@ -180,68 +177,53 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
 </body>
 </html>`;
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const fileName = `notlar_${timestamp}.html`;
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const fileName = `notlar_${ts}.html`;
 
     if (Platform.OS === "web") {
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      webDownload(html, fileName, "text/html");
       return;
     }
-
-    const filePath = `${FileSystem.cacheDirectory}${fileName}`;
-    await FileSystem.writeAsStringAsync(filePath, html, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
-
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (isAvailable) {
-      await Sharing.shareAsync(filePath, {
-        mimeType: "text/html",
-        dialogTitle: "HTML dosyasını kaydet",
-        UTI: "public.html",
-      });
-    } else {
-      Alert.alert("Hata", "Bu cihazda dosya paylaşımı desteklenmiyor.");
-    }
+    await nativeShare(html, fileName, "text/html", "public.html");
   }, [entries]);
 
+  // ── JSON import ──────────────────────────────────────────────────────────
   const importJSON = useCallback(
     async (mode: "replace" | "merge"): Promise<ImportResult | null> => {
-      // Web: use hidden file input
+      const validateEntries = (parsed: unknown[]): Entry[] =>
+        parsed.filter(
+          (e): e is Entry =>
+            e != null &&
+            typeof (e as Entry).id === "string" &&
+            ((e as Entry).type === "note" || (e as Entry).type === "diary") &&
+            typeof (e as Entry).title === "string"
+        );
+
+      const applyImport = async (valid: Entry[], totalParsed: number): Promise<ImportResult> => {
+        if (mode === "replace") {
+          await persist(valid);
+          return { imported: valid.length, skipped: totalParsed - valid.length };
+        }
+        const existingIds = new Set(entries.map((e) => e.id));
+        const incoming = valid.filter((e) => !existingIds.has(e.id));
+        await persist([...incoming, ...entries]);
+        return { imported: incoming.length, skipped: valid.length - incoming.length };
+      };
+
+      // Web: hidden file input
       if (Platform.OS === "web") {
         return new Promise((resolve) => {
           const input = document.createElement("input");
           input.type = "file";
           input.accept = "application/json,.json";
           input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) { resolve(null); return; }
-            const text = await file.text();
+            const webFile = input.files?.[0];
+            if (!webFile) { resolve(null); return; }
             try {
+              const text = await webFile.text();
               const parsed = JSON.parse(text);
               if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
-              const valid: Entry[] = parsed.filter(
-                (e: unknown) =>
-                  e &&
-                  typeof (e as Entry).id === "string" &&
-                  ((e as Entry).type === "note" || (e as Entry).type === "diary") &&
-                  typeof (e as Entry).title === "string"
-              );
-              if (mode === "replace") {
-                await persist(valid);
-                resolve({ imported: valid.length, skipped: parsed.length - valid.length });
-              } else {
-                const existingIds = new Set(entries.map((e) => e.id));
-                const incoming = valid.filter((e) => !existingIds.has(e.id));
-                await persist([...incoming, ...entries]);
-                resolve({ imported: incoming.length, skipped: valid.length - incoming.length });
-              }
+              resolve(await applyImport(validateEntries(parsed), parsed.length));
             } catch {
               Alert.alert("Hata", "Geçersiz JSON dosyası.");
               resolve(null);
@@ -251,38 +233,19 @@ ${noteEntries.length > 0 ? `<h2>Notlar (${noteEntries.length})</h2>${noteEntries
         });
       }
 
-      // Native: document picker
+      // Native: document picker → File.text()
       const result = await DocumentPicker.getDocumentAsync({
         type: ["application/json", "text/plain"],
         copyToCacheDirectory: true,
       });
       if (result.canceled) return null;
 
-      const uri = result.assets[0].uri;
-      const text = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
-
+      const pickedFile = new File(result.assets[0].uri);
+      const text = await pickedFile.text();
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) throw new Error("Dizi bekleniyor");
 
-      const valid: Entry[] = parsed.filter(
-        (e: unknown) =>
-          e &&
-          typeof (e as Entry).id === "string" &&
-          ((e as Entry).type === "note" || (e as Entry).type === "diary") &&
-          typeof (e as Entry).title === "string"
-      );
-
-      if (mode === "replace") {
-        await persist(valid);
-        return { imported: valid.length, skipped: parsed.length - valid.length };
-      } else {
-        const existingIds = new Set(entries.map((e) => e.id));
-        const incoming = valid.filter((e) => !existingIds.has(e.id));
-        await persist([...incoming, ...entries]);
-        return { imported: incoming.length, skipped: valid.length - incoming.length };
-      }
+      return applyImport(validateEntries(parsed), parsed.length);
     },
     [entries, persist]
   );
