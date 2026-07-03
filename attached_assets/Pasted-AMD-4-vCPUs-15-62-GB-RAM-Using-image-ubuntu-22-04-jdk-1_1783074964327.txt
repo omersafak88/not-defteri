@@ -1,0 +1,60 @@
+AMD, 4 vCPUs, 15.62 GB RAM
+
+Using image "ubuntu-22.04-jdk-11-ndk-r21e" based on "ubuntu-2204-jammy-v20220810"
+
+Installed software:
+- NDK 21.4.7075529
+- Node.js 18.18.0
+- Bun 1.0.14
+- Yarn 1.22.19
+- pnpm 8.7.5
+- npm 9.8.1
+- Java 11
+- node-gyp 10.0.1
+
+Project environment variables:
+  EAS_USE_CACHE=1
+  EAS_USE_NPM_CACHE=0
+  __API_SERVER_URL=https://api.expo.dev/
+
+Environment secrets:
+  EXPO_TOKEN=********
+
+EAS Build environment variables:
+  NVM_INC=/home/expo/.nvm/versions/node/v18.18.0/include/node
+  HOSTNAME=turtle-worker-1f0abaac3cd1
+  JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+  WORKER_TARBALL_URL=https://storage.googleapis.com/eas-build-worker-tarballs/worker-android-production.tar.gz
+  PWD=/usr/local/eas-build-worker
+  HOME=/home/expo
+  ANDROID_NDK_HOME=/home/expo/Android/Sdk/ndk/21.4.7075529
+  NVM_DIR=/home/expo/.nvm
+  ANDROID_HOME=/home/expo/Android/Sdk
+  SHLVL=1
+  ANDROID_SDK_ROOT=/home/expo/Android/Sdk
+  PATH=/home/expo/workingdir/bin:/home/expo/.nvm/versions/node/v18.18.0/bin:/opt/bundletool:/home/expo/Android/Sdk/build-tools/29.0.3:/home/expo/Android/Sdk/build-tools/35.0.0:/home/expo/Android/Sdk/ndk/21.4.7075529:/home/expo/Android/Sdk/cmdline-tools/tools/bin:/home/expo/Android/Sdk/tools:/home/expo/Android/Sdk/tools/bin:/home/expo/Android/Sdk/platform-tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin:/home/expo/.bun/bin
+  LOGGER_LEVEL=debug
+  NVM_BIN=/home/expo/.nvm/versions/node/v18.18.0/bin
+  EAS_BUILD_WORKER_DIR=/home/expo/eas-build-worker
+  OLDPWD=/home/expo
+  _=/home/expo/.nvm/versions/node/v18.18.0/bin/node
+  CI=1
+  MAESTRO_DRIVER_STARTUP_TIMEOUT=120000
+  MAESTRO_CLI_NO_ANALYTICS=1
+  HOMEBREW_NO_AUTO_UPDATE=1
+  EAS_BUILD=true
+  EAS_BUILD_RUNNER=eas-build
+  EAS_BUILD_PLATFORM=android
+  EAS_CLI_SENTRY_DSN=https://ca4734dc503543b28d55fdaf0563f61c@o30871.ingest.sentry.io/1837720
+  NVM_NODEJS_ORG_MIRROR=http://nodejs.production.caches.eas-build.internal
+  EAS_BUILD_PROFILE=production
+  EAS_BUILD_GIT_COMMIT_HASH=a20852b142adfa507988c74c805b4aba1f3871af
+  EAS_BUILD_ID=c29ddbe2-205e-4d1f-ac63-1f0abaac3cd1
+  LANG=en_US.UTF-8
+  EAS_BUILD_WORKINGDIR=/home/expo/workingdir/build
+  EAS_BUILD_PROJECT_ID=154c24bf-dafd-4b3d-ae7f-636594c8c09d
+  EAS_BUILD_MAVEN_CACHE_URL=http://maven.production.caches.eas-build.internal
+  GRADLE_OPTS=-Dorg.gradle.jvmargs="-XX:MaxMetaspaceSize=1g -Xmx4g -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8" -Dorg.gradle.parallel=true -Dorg.gradle.daemon=false
+  __EAS_BUILD_ENVS_DIR=/home/expo/workingdir/env
+
+Builder is ready, starting build
