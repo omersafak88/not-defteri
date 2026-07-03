@@ -20,7 +20,7 @@
       }
     },
     "android": {
-      "package": "com.notdefteri.app",
+      "package": "com.smart_notes.app",
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",

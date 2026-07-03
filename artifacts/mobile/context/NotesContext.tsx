@@ -11,6 +11,7 @@ export interface Entry {
   tags: string[];
   photos: string[];
   createdAt: string;
+  updatedAt?: string;
   date: string;
 }
 
@@ -74,7 +75,7 @@ export function NotesProvider({ children }: { children: React.ReactNode }) {
 
   const updateEntry = useCallback(
     async (id: string, updates: Partial<Omit<Entry, "id" | "createdAt">>) => {
-      await persist(entries.map((e) => (e.id === id ? { ...e, ...updates } : e)));
+      await persist(entries.map((e) => (e.id === id ? { ...e, ...updates, updatedAt: new Date().toISOString() } : e)));
     },
     [entries, persist]
   );
